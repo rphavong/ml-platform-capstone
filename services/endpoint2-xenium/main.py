@@ -13,10 +13,10 @@ from pydantic import BaseModel, Field
 logging.basicConfig(level=logging.INFO)
  
 # --- Service identity: the ONLY lines that differ between endpoint1 and endpoint2 ---
-SERVICE_NAME = "endpoint1-flex"
-SERVICE_TITLE = "Endpoint 1 - Flex Cell Type & Malignancy Classifier"
-DATA_SOURCE = "10x Flex single-cell, cervical cancer FFPE"
-ARTIFACT_PREFIX = "endpoint1"  # model files are named <prefix>_model.joblib etc.
+SERVICE_NAME = "endpoint2-xenium"
+SERVICE_TITLE = "Endpoint 2 - Xenium Prime Cell Type & Malignancy Classifier"
+DATA_SOURCE = "10x Xenium Prime 5K spatial, cervical cancer FFPE (same FFPE block as Flex)"
+ARTIFACT_PREFIX = "endpoint1"  # Xenium reuses the classifier trained on Flex, so the files keep the endpoint1_ prefix
  
 logger = logging.getLogger(SERVICE_NAME)
  
