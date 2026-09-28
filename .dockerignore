@@ -1,0 +1,15 @@
+# Applies to all three services - copy this ONE file to the capstone root
+# (ml-platform-capstone/.dockerignore), not into each service folder.
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/venv/
+**/.venv/
+**/*.egg-info/
+**/.DS_Store
+**/.git/
+**/ec2-pipeline-pulled/
+**/*.h5ad
+**/*.h5
+**/*.parquet
+**/*.gtf.gz
