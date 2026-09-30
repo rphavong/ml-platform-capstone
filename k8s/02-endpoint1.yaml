@@ -1,18 +1,9 @@
-# Module 6c: endpoint1-flex, running as a Kubernetes Deployment + Service.
-#
-# Deployment = "keep 1 healthy pod of this image running, replace it if it dies."
-# Service    = "give that pod a stable internal DNS name (endpoint1-flex.ml-platform)
-#               other things in the cluster - like the ops dashboard later - can call,
-#               instead of tracking pod IPs that change every restart."
-#
-# replicas: 1 on purpose for now - this is a demo cluster on 2x t3.medium nodes, and 3
-# services x more replicas each would eat the node capacity fast. Bump this once you're
-# ready to show HA / rolling updates as part of the demo narrative.
+# endpoint1-flex - lives in single-cell-genomics (see 00-namespaces.yaml for why).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: endpoint1-flex
-  namespace: ml-platform
+  namespace: single-cell-genomics
   labels:
     app: endpoint1-flex
 spec:
@@ -42,10 +33,20 @@ spec:
                 configMapKeyRef:
                   name: proxy-config
                   key: ENDPOINT1_SAGEMAKER_ENDPOINT_NAME
-          # requests = what the scheduler reserves for this pod when deciding which
-          # node to place it on. limits = the hard ceiling Kubernetes will enforce
-          # (OOMKilled if memory goes over, throttled if CPU goes over). This is a
-          # thin proxy with no model in-process anymore, so it needs very little.
+            # Fallback-only credentials (see pod-fallback-iam.tf + main.py). Named
+            # AWS_BACKUP_* on purpose, NOT AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY -
+            # those standard names would jump to the FRONT of boto3's default credential
+            # chain and silently override the node-role path we actually want as primary.
+            - name: AWS_BACKUP_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: sagemaker-invoke-fallback
+                  key: access_key_id
+            - name: AWS_BACKUP_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sagemaker-invoke-fallback
+                  key: secret_access_key
           resources:
             requests:
               cpu: 100m
@@ -53,30 +54,32 @@ spec:
             limits:
               cpu: 300m
               memory: 256Mi
-          # liveness: "is the process alive at all" - never touches SageMaker, so a
-          # slow/unreachable SageMaker endpoint won't cause Kubernetes to kill and
-          # restart a perfectly healthy pod.
+          # startupProbe: gives the container up to 60s (30 x 2s) to come up before
+          # liveness/readiness start counting failures at all - protects a slow first
+          # pull/cold start from being mistaken for a crash loop. Once it succeeds once,
+          # liveness/readiness take over exactly as before.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            failureThreshold: 30
+            periodSeconds: 2
           livenessProbe:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 5
             periodSeconds: 10
-          # readiness: "is this pod ready to receive traffic" - checks the local
-          # schema.json load finished. Also local-only (not a SageMaker round trip),
-          # so it reflects startup state, not SageMaker's availability.
           readinessProbe:
             httpGet:
               path: /ready
               port: 8000
-            initialDelaySeconds: 5
             periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: endpoint1-flex
-  namespace: ml-platform
+  namespace: single-cell-genomics
 spec:
   selector:
     app: endpoint1-flex

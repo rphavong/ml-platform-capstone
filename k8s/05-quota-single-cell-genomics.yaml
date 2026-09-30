@@ -1,0 +1,43 @@
+# ResourceQuota: hard ceiling on TOTAL resources this namespace's pods can request/use
+# across the whole namespace - prevents one namespace from starving the other on a
+# shared 2x t3.medium node pool. Sized with headroom above the 2 deployments' current
+# combined footprint (200m/256Mi requests, 600m/512Mi limits) so you can bump replicas
+# for an HA demo without hitting the ceiling.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: single-cell-genomics-quota
+  namespace: single-cell-genomics
+spec:
+  hard:
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.cpu: "2"
+    limits.memory: 2Gi
+    pods: "10"
+---
+# LimitRange: PER-CONTAINER defaults and bounds. If a container in this namespace is
+# ever deployed without its own resources block, it gets these defaults instead of
+# being unbounded (which is the actual failure mode ResourceQuota alone doesn't catch -
+# a quota only rejects when the NAMESPACE total is exceeded, not an individual
+# container with no limits set).
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: single-cell-genomics-limits
+  namespace: single-cell-genomics
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 300m
+        memory: 256Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+      max:
+        cpu: 500m
+        memory: 512Mi
+      min:
+        cpu: 50m
+        memory: 64Mi

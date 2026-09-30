@@ -1,0 +1,26 @@
+# Module 6c (revised): two namespaces instead of one, mapping to the two workstreams
+# in this project - matching the rubric's "namespace separation per team" the same way
+# the assignment's own example scenarios separate a Fraud team from a Recommendations
+# team. Here the natural split isn't by business unit (this is a single-author capstone)
+# but by which trained model a service depends on:
+#   - single-cell-genomics: endpoint1-flex + endpoint2-xenium, both served by the SAME
+#     reference classifier (see ec2-pipeline-pulled/train_classifier.py) - one team's
+#     workstream, two entry points into it.
+#   - spatial-analysis: endpoint3-spatial, served by a separately-trained model that
+#     adds physical neighborhood context - a distinct workstream with its own model,
+#     its own resource footprint (larger payloads), and its own quota.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: single-cell-genomics
+  labels:
+    project: assessment4-robert
+    team: single-cell-genomics
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spatial-analysis
+  labels:
+    project: assessment4-robert
+    team: spatial-analysis

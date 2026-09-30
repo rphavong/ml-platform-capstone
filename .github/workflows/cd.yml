@@ -1,18 +1,11 @@
-# Module 7: CD. Runs on every push to main - tests first (reusing the exact same
-# test.yml as CI, via `needs:` so build never starts on a red build), then builds
-# and pushes each proxy service's Docker image to its ECR repo under two tags: a
-# floating `:k8s-proxy` (what the Kubernetes Deployments actually reference) and an
-# immutable `:<commit-sha>` (so any build can be traced back to the exact commit that
-# produced it, and rolled back to by tag if a bad build ever needs reverting).
-#
-# On purpose, this workflow stops after pushing to ECR - it does NOT kubectl apply or
-# restart anything on the live EKS cluster. Auto-deploying on every merge would mean
-# every push touches live infra (nodes/pods) on a demo cluster deliberately kept
-# minimal and mostly torn down between sessions for cost. Rolling a new image out is
-# a deliberate, manual `kubectl rollout restart deployment/<service> -n ml-platform`
-# once you've confirmed the push succeeded - see the summary step below for the exact
-# command with the right image tag already filled in.
-name: CD - Build and Push Proxy Images
+# Module 7 (revised): tests -> build+push each service's image -> deploy to the live
+# EKS cluster -> verify the rollout actually came up healthy. Runs on every push to
+# main. The SageMaker endpoints behind these proxies get deliberately torn down
+# between sessions for cost (see sagemaker-packaging/*/package_and_deploy.py
+# --teardown-only), but the EKS cluster itself stays up, so an automated deploy here
+# is safe - it's rolling a new proxy image onto an always-on cluster, not standing
+# anything up from scratch.
+name: CD - Build, Push, Deploy
 
 on:
   push:
@@ -20,6 +13,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
+  EKS_CLUSTER_NAME: assessment4-robert-cluster
 
 jobs:
   test:
@@ -53,7 +47,8 @@ jobs:
       # that constraint, this uses a long-lived IAM access key stored as encrypted
       # GitHub repo secrets instead: less ideal than short-lived OIDC-issued
       # credentials, but it works within the permissions actually available, and is
-      # scoped to an IAM user with only ECR push access - not an admin key.
+      # scoped to an IAM user with only ECR push + a narrow, namespace-scoped EKS
+      # access entry - not an admin key.
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -95,10 +90,69 @@ jobs:
           docker push "$ECR_URI:k8s-proxy"
           docker push "$ECR_URI:${{ github.sha }}"
 
-      - name: Print manual rollout command
+  deploy:
+    name: Deploy ${{ matrix.service }}
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    strategy:
+      # fail-fast: false so a problem rolling out endpoint1 doesn't cancel the
+      # in-flight rollout of endpoint2/3 - each service's deploy is independent.
+      fail-fast: false
+      matrix:
+        include:
+          - service: endpoint1-flex
+            ecr_repo: assessment4-robert-endpoint1
+            namespace: single-cell-genomics
+          - service: endpoint2-xenium
+            ecr_repo: assessment4-robert-endpoint2
+            namespace: single-cell-genomics
+          - service: endpoint3-spatial
+            ecr_repo: assessment4-robert-endpoint3
+            namespace: spatial-analysis
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Uses the EKS access entry from terraform/github-actions-eks-access.tf -
+      # scoped to exactly this service's namespace, nothing wider.
+      - name: Point kubectl at the EKS cluster
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: Roll out the new image
         env:
-          ECR_URI: ${{ steps.ecr-login.outputs.registry }}/${{ matrix.ecr_repo }}
+          # Account ID via AWS CLI rather than hardcoding it a second time in this
+          # file - matches the pattern in terraform/provider.tf (data.aws_caller_identity).
+          AWS_ACCOUNT_ID_CMD: aws sts get-caller-identity --query Account --output text
         run: |
-          echo "Image pushed: $ECR_URI:${{ github.sha }} (also tagged :k8s-proxy)"
-          echo "To roll this out to the live cluster, run:"
-          echo "  kubectl rollout restart deployment/${{ matrix.service }} -n ml-platform"
+          ACCOUNT_ID=$($AWS_ACCOUNT_ID_CMD)
+          IMAGE="$ACCOUNT_ID.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ matrix.ecr_repo }}:${{ github.sha }}"
+          kubectl set image deployment/${{ matrix.service }} \
+            ${{ matrix.service }}="$IMAGE" \
+            -n ${{ matrix.namespace }}
+
+      # Verification step (rubric 4.3): wait for the rollout to actually finish -
+      # this fails the job (and the workflow) if the new pod never reaches Ready,
+      # rather than reporting success just because `kubectl set image` was accepted.
+      - name: Wait for rollout to complete
+        run: |
+          kubectl rollout status deployment/${{ matrix.service }} \
+            -n ${{ matrix.namespace }} \
+            --timeout=120s
+
+      # Second verification step: an actual /health call INSIDE the new pod, not
+      # just "the Deployment object says Ready". Uses python's urllib (same as the
+      # Dockerfile's own HEALTHCHECK) rather than curl - these images don't have curl
+      # installed (see services/*/Dockerfile), which cost real debugging time earlier
+      # in this project when a kubectl exec + curl command silently failed.
+      - name: Verify the new pod answers /health
+        run: |
+          POD=$(kubectl get pod -n ${{ matrix.namespace }} -l app=${{ matrix.service }} -o jsonpath='{.items[0].metadata.name}')
+          echo "Checking /health on $POD..."
+          kubectl exec -n ${{ matrix.namespace }} "$POD" -- \
+            python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health', timeout=5).read().decode())"
+          kubectl get pods -n ${{ matrix.namespace }} -l app=${{ matrix.service }}

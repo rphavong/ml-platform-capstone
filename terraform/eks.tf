@@ -7,6 +7,26 @@ resource "aws_eks_cluster" "main" {
     subnet_ids = data.aws_subnets.default.ids
   }
 
+  # Module 7 (rubric gap fix): this cluster was created CONFIG_MAP-only (the older
+  # aws-auth-ConfigMap-only auth model). EKS Access Entries - the resource type used
+  # in github-actions-eks-access.tf to grant the GitHub Actions IAM user scoped,
+  # namespace-limited kubectl access for CD - are a newer EKS API that requires the
+  # cluster to also support API-based authentication. This is an in-place
+  # authentication-mode upgrade (EKS's UpdateClusterConfig API), not a cluster
+  # recreate - the existing aws-auth ConfigMap keeps working exactly as before,
+  # this just ALSO allows the Access Entries API to be used alongside it.
+  access_config {
+    authentication_mode = "API_AND_CONFIG_MAP"
+    # Must match what's already recorded in state (the cluster was originally
+    # created with this = true, even though it wasn't spelled out in eks.tf before).
+    # This field is create-only/ForceNew - if Terraform sees it go from true to
+    # "not set" it reads that as an attribute CHANGE and replaces the entire
+    # cluster to apply it, rather than just upgrading authentication_mode in
+    # place. Setting it explicitly here keeps it unchanged from state, so only
+    # authentication_mode actually changes (a real in-place EKS API update).
+    bootstrap_cluster_creator_admin_permissions = true
+  }
+
   # Terraform must wait for the IAM policy to actually be attached before EKS tries to
   # assume the role - without this, cluster creation can fail intermittently on a fresh
   # apply (IAM changes aren't always instantly consistent across AWS).

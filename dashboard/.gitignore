@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.DS_Store
+
+# Generated from the project's test_payload.json fixtures (see README) - not source,
+# and endpoint1/2's require a small transform, so keep them generated, not committed.
+public/test-payloads/*.json

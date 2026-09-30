@@ -19,7 +19,7 @@ import os
 import boto3
 import numpy as np
 from botocore.config import Config
-from botocore.exceptions import ClientError, ReadTimeoutError, ConnectTimeoutError, EndpointConnectionError
+from botocore.exceptions import ClientError, ReadTimeoutError, ConnectTimeoutError, EndpointConnectionError, NoCredentialsError, PartialCredentialsError
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -47,7 +47,51 @@ READY = False
 # error instead of letting the caller hang. 2 retries covers a transient network blip
 # without turning a real outage into a long stall.
 _boto_config = Config(connect_timeout=5, read_timeout=20, retries={"max_attempts": 2})
+
+# Primary path: default credential chain, which in-cluster resolves to the node's IAM
+# role via IMDS (eks-iam.tf) - no static keys involved. Fallback path: the scoped-down
+# sagemaker-invoke-fallback k8s Secret (pod-fallback-iam.tf), used ONLY if the primary
+# path's credentials are unavailable. Env var names are deliberately non-standard
+# (AWS_BACKUP_*, not AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY) so they never shadow the
+# primary chain - boto3 only sees them because we pass them explicitly below.
 runtime = boto3.client("sagemaker-runtime", region_name=AWS_REGION, config=_boto_config)
+
+_fallback_key = os.environ.get("AWS_BACKUP_ACCESS_KEY_ID")
+_fallback_secret = os.environ.get("AWS_BACKUP_SECRET_ACCESS_KEY")
+runtime_fallback = None
+if _fallback_key and _fallback_secret:
+    runtime_fallback = boto3.client(
+        "sagemaker-runtime",
+        region_name=AWS_REGION,
+        aws_access_key_id=_fallback_key,
+        aws_secret_access_key=_fallback_secret,
+        config=_boto_config,
+    )
+
+
+def _invoke_with_fallback(body: str):
+    """Call SageMaker via the primary (node-role) client; if credentials aren't
+    reachable through that path, retry once via the scoped-down fallback client."""
+    try:
+        return runtime.invoke_endpoint(
+            EndpointName=SAGEMAKER_ENDPOINT_NAME,
+            ContentType="application/json",
+            Accept="application/json",
+            Body=body,
+        )
+    except (NoCredentialsError, PartialCredentialsError):
+        if runtime_fallback is None:
+            raise
+        logger.warning(
+            "Primary (node IAM role) credentials unavailable - retrying via the "
+            "sagemaker-invoke-fallback Secret's scoped-down credentials."
+        )
+        return runtime_fallback.invoke_endpoint(
+            EndpointName=SAGEMAKER_ENDPOINT_NAME,
+            ContentType="application/json",
+            Accept="application/json",
+            Body=body,
+        )
 
 
 @asynccontextmanager
@@ -143,12 +187,7 @@ def predict(request: PredictRequest):
     # --- This is the "explicit routing" step: hand the validated request to the real
     # model, which lives entirely inside the SageMaker endpoint, not this process. ---
     try:
-        response = runtime.invoke_endpoint(
-            EndpointName=SAGEMAKER_ENDPOINT_NAME,
-            ContentType="application/json",
-            Accept="application/json",
-            Body=body,
-        )
+        response = _invoke_with_fallback(body)
     except (ReadTimeoutError, ConnectTimeoutError):
         logger.error(f"Timed out waiting for SageMaker endpoint {SAGEMAKER_ENDPOINT_NAME}")
         raise HTTPException(status_code=504, detail="Timed out waiting for the model endpoint")

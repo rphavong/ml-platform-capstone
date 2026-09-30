@@ -1,13 +1,13 @@
-# Module 6c: endpoint3-spatial. Same shape as the other two, with slightly more memory
-# headroom - its payloads are bigger (60 cells x 4512 features in your test data) since
-# it forwards the full expression matrix plus x/y coordinates and predicted_label per
-# cell, even though the actual spatial-neighbor math now runs inside the SageMaker
-# container, not here.
+# endpoint3-spatial - lives in spatial-analysis, its own namespace/workstream since it's
+# served by a separately-trained model (see k8s/00-namespaces.yaml). Slightly more
+# memory headroom than the other two - its payloads are bigger (60 cells x 4512
+# features in the packaged test data) since it forwards the full expression matrix plus
+# x/y coordinates and predicted_label per cell.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: endpoint3-spatial
-  namespace: ml-platform
+  namespace: spatial-analysis
   labels:
     app: endpoint3-spatial
 spec:
@@ -37,6 +37,16 @@ spec:
                 configMapKeyRef:
                   name: proxy-config
                   key: ENDPOINT3_SAGEMAKER_ENDPOINT_NAME
+            - name: AWS_BACKUP_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: sagemaker-invoke-fallback
+                  key: access_key_id
+            - name: AWS_BACKUP_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sagemaker-invoke-fallback
+                  key: secret_access_key
           resources:
             requests:
               cpu: 100m
@@ -44,24 +54,28 @@ spec:
             limits:
               cpu: 300m
               memory: 384Mi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            failureThreshold: 30
+            periodSeconds: 2
           livenessProbe:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 5
             periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /ready
               port: 8000
-            initialDelaySeconds: 5
             periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: endpoint3-spatial
-  namespace: ml-platform
+  namespace: spatial-analysis
 spec:
   selector:
     app: endpoint3-spatial

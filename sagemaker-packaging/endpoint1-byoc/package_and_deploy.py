@@ -26,11 +26,13 @@ Steps, in order:
      expected_labels.
 """
 import json
+import sys
 import tarfile
 import time
 from pathlib import Path
- 
+
 import boto3
+from botocore.exceptions import ClientError
  
 # --- Fill these in / confirm before running ---
 REGION = "us-east-1"
@@ -71,12 +73,62 @@ def upload(tar_path):
     return s3_uri
  
  
-def deploy(s3_uri):
-    print(f"Using container image: {ECR_IMAGE_URI}")
- 
+def _delete_if_exists(delete_fn, not_found_code, label, **kwargs):
+    """Best-effort cleanup: delete a leftover SageMaker object from a prior
+    teardown, silently no-op if it never existed (or was already deleted)."""
+    try:
+        delete_fn(**kwargs)
+        print(f"  deleted leftover {label}")
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code", "")
+        message = e.response.get("Error", {}).get("Message", "")
+        if code == not_found_code or "Could not find" in message or "does not exist" in message:
+            pass  # nothing to clean up - normal case on a first-ever deploy
+        else:
+            raise
+
+
+def _wait_for_endpoint_deleted():
+    """If an endpoint with this name still exists (in DeleteFailed/Deleting/etc),
+    wait for it to actually be gone before we try to create a new one."""
+    while True:
+        try:
+            status = sm.describe_endpoint(EndpointName=ENDPOINT_NAME)["EndpointStatus"]
+        except ClientError:
+            return  # no longer exists
+        print(f"  waiting for old endpoint to finish deleting (status: {status})...")
+        time.sleep(15)
+
+def teardown():
+    """Delete the endpoint, endpoint config, and model for cost savings between
+    demo runs, without touching the S3 artifact or the ECR image (those are free
+    to keep around and cheap/fast to reuse on the next deploy)."""
     model_name = f"{ENDPOINT_NAME}-model"
     config_name = f"{ENDPOINT_NAME}-config"
- 
+
+    print(f"Tearing down {ENDPOINT_NAME}...")
+    _delete_if_exists(sm.delete_endpoint, "ValidationException", "endpoint", EndpointName=ENDPOINT_NAME)
+    _wait_for_endpoint_deleted()
+    _delete_if_exists(sm.delete_endpoint_config, "ValidationException", "endpoint config", EndpointConfigName=config_name)
+    _delete_if_exists(sm.delete_model, "ValidationException", "model", ModelName=model_name)
+    print("Teardown complete.")
+
+def deploy(s3_uri):
+    print(f"Using container image: {ECR_IMAGE_URI}")
+
+    model_name = f"{ENDPOINT_NAME}-model"
+    config_name = f"{ENDPOINT_NAME}-config"
+
+    # Clean up anything left behind by a prior teardown (e.g. only the endpoint
+    # was deleted for cost savings, leaving the model/config objects behind).
+    # Order matters: endpoint before config before model, since SageMaker won't
+    # let you delete a config/model that's still referenced by a live endpoint.
+    print("Checking for leftover resources from a previous deploy...")
+    _delete_if_exists(sm.delete_endpoint, "ValidationException", "endpoint", EndpointName=ENDPOINT_NAME)
+    _wait_for_endpoint_deleted()
+    _delete_if_exists(sm.delete_endpoint_config, "ValidationException", "endpoint config", EndpointConfigName=config_name)
+    _delete_if_exists(sm.delete_model, "ValidationException", "model", ModelName=model_name)
+
     sm.create_model(
         ModelName=model_name,
         ExecutionRoleArn=ROLE_ARN,
@@ -88,7 +140,7 @@ def deploy(s3_uri):
         },
     )
     print(f"Created model: {model_name}")
- 
+
     sm.create_endpoint_config(
         EndpointConfigName=config_name,
         ProductionVariants=[
@@ -101,17 +153,17 @@ def deploy(s3_uri):
         ],
     )
     print(f"Created endpoint config: {config_name}")
- 
+
     sm.create_endpoint(EndpointName=ENDPOINT_NAME, EndpointConfigName=config_name)
     print(f"Creating endpoint: {ENDPOINT_NAME} (this takes several minutes)...")
- 
+
     while True:
         status = sm.describe_endpoint(EndpointName=ENDPOINT_NAME)["EndpointStatus"]
         print(f"  status: {status}")
         if status in ("InService", "Failed"):
             break
         time.sleep(30)
- 
+
     if status == "Failed":
         reason = sm.describe_endpoint(EndpointName=ENDPOINT_NAME)["FailureReason"]
         raise SystemExit(f"Endpoint failed to deploy: {reason}")
@@ -137,7 +189,10 @@ def test_invoke():
  
  
 if __name__ == "__main__":
-    tar_path = build_tarball()
-    s3_uri = upload(tar_path)
-    deploy(s3_uri)
-    test_invoke()
+    if "--teardown-only" in sys.argv:
+        teardown()
+    else:
+        tar_path = build_tarball()
+        s3_uri = upload(tar_path)
+        deploy(s3_uri)
+        test_invoke()

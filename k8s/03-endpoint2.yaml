@@ -1,10 +1,10 @@
-# Module 6c: endpoint2-xenium. Same shape as endpoint1-flex - only the name, image, and
-# which ConfigMap key it reads its SageMaker endpoint name from differ.
+# endpoint2-xenium - lives in single-cell-genomics, same as endpoint1-flex (both are
+# routed to the SAME reference model - see k8s/00-namespaces.yaml).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: endpoint2-xenium
-  namespace: ml-platform
+  namespace: single-cell-genomics
   labels:
     app: endpoint2-xenium
 spec:
@@ -34,6 +34,16 @@ spec:
                 configMapKeyRef:
                   name: proxy-config
                   key: ENDPOINT2_SAGEMAKER_ENDPOINT_NAME
+            - name: AWS_BACKUP_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: sagemaker-invoke-fallback
+                  key: access_key_id
+            - name: AWS_BACKUP_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sagemaker-invoke-fallback
+                  key: secret_access_key
           resources:
             requests:
               cpu: 100m
@@ -41,24 +51,28 @@ spec:
             limits:
               cpu: 300m
               memory: 256Mi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            failureThreshold: 30
+            periodSeconds: 2
           livenessProbe:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 5
             periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /ready
               port: 8000
-            initialDelaySeconds: 5
             periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: endpoint2-xenium
-  namespace: ml-platform
+  namespace: single-cell-genomics
 spec:
   selector:
     app: endpoint2-xenium
