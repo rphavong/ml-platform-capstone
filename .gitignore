@@ -6,3 +6,16 @@ __pycache__/
 *.h5
 *.parquet
 *.gtf.gz
+
+# Generated build artifacts, not source - package_and_deploy.py rebuilds these fresh
+# every run, so tracking them just bloats the repo with binary diffs.
+**/_sagemaker_build/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Manual IAM policy JSON from before Terraform took over role/policy management
+# (Module 5a) - terraform/iam.tf is now the real source of truth for these.
+aws-setup/
+__pycache__/
+*.pyc
