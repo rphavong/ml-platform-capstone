@@ -1,0 +1,41 @@
+# Module 7: the actual test matrix, pulled into its own reusable workflow (workflow_call)
+# so both ci.yml (on every PR) and cd.yml (on push to main, before building anything)
+# call the exact same steps instead of two copies of the same job silently drifting
+# apart over time.
+name: Reusable - Test Proxy Services
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    name: Test ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [endpoint1-flex, endpoint2-xenium, endpoint3-spatial]
+
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: services/${{ matrix.service }}/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest httpx
+
+      - name: Run tests
+        run: pytest -v

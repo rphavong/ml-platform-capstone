@@ -1,0 +1,14 @@
+# Module 7: CI. Runs on every pull request into main - the fast feedback loop, before
+# anything merges, on whether a change broke any of the 3 proxy services. Just calls
+# the shared test workflow (test.yml) so PRs and the CD pipeline (cd.yml) can never
+# drift into running different tests. Nothing here touches AWS, so it needs no
+# secrets and is safe on any PR from any branch, including forks.
+name: CI - Test Proxy Services
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml

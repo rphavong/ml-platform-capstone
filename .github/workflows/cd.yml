@@ -1,0 +1,104 @@
+# Module 7: CD. Runs on every push to main - tests first (reusing the exact same
+# test.yml as CI, via `needs:` so build never starts on a red build), then builds
+# and pushes each proxy service's Docker image to its ECR repo under two tags: a
+# floating `:k8s-proxy` (what the Kubernetes Deployments actually reference) and an
+# immutable `:<commit-sha>` (so any build can be traced back to the exact commit that
+# produced it, and rolled back to by tag if a bad build ever needs reverting).
+#
+# On purpose, this workflow stops after pushing to ECR - it does NOT kubectl apply or
+# restart anything on the live EKS cluster. Auto-deploying on every merge would mean
+# every push touches live infra (nodes/pods) on a demo cluster deliberately kept
+# minimal and mostly torn down between sessions for cost. Rolling a new image out is
+# a deliberate, manual `kubectl rollout restart deployment/<service> -n ml-platform`
+# once you've confirmed the push succeeded - see the summary step below for the exact
+# command with the right image tag already filled in.
+name: CD - Build and Push Proxy Images
+
+on:
+  push:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  build-and-push:
+    name: Build ${{ matrix.service }}
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: endpoint1-flex
+            ecr_repo: assessment4-robert-endpoint1
+          - service: endpoint2-xenium
+            ecr_repo: assessment4-robert-endpoint2
+          - service: endpoint3-spatial
+            ecr_repo: assessment4-robert-endpoint3
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # This project's IAM user can't create an IAM OIDC identity provider
+      # (iam:CreateOpenIDConnectProvider is denied in this class AWS account - the
+      # exact same permission wall we hit trying to set up IRSA for the EKS pods in
+      # Module 5c). GitHub's own recommended approach for AWS auth is OIDC federation,
+      # which needs that same permission to register token.actions.githubusercontent.com
+      # as a trusted OIDC provider - so it would hit the identical AccessDenied. Given
+      # that constraint, this uses a long-lived IAM access key stored as encrypted
+      # GitHub repo secrets instead: less ideal than short-lived OIDC-issued
+      # credentials, but it works within the permissions actually available, and is
+      # scoped to an IAM user with only ECR push access - not an admin key.
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Same exact flags that got these images working locally in Module 6b:
+      # SageMaker/standard Docker tooling rejects the OCI-format manifests that
+      # buildx produces by default, so --provenance=false --sbom=false and
+      # oci-mediatypes=false force the older Docker v2 Schema2 format instead.
+      # --output type=docker loads the built image into the runner's local Docker
+      # daemon rather than pushing straight from buildx, matching the proven local
+      # recipe exactly - then an ordinary `docker push` sends it to ECR.
+      - name: Build image
+        working-directory: services/${{ matrix.service }}
+        env:
+          ECR_URI: ${{ steps.ecr-login.outputs.registry }}/${{ matrix.ecr_repo }}
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --provenance=false --sbom=false \
+            --output type=docker,oci-mediatypes=false \
+            -t "$ECR_URI:k8s-proxy" \
+            -t "$ECR_URI:${{ github.sha }}" \
+            .
+
+      - name: Push image
+        env:
+          ECR_URI: ${{ steps.ecr-login.outputs.registry }}/${{ matrix.ecr_repo }}
+        run: |
+          docker push "$ECR_URI:k8s-proxy"
+          docker push "$ECR_URI:${{ github.sha }}"
+
+      - name: Print manual rollout command
+        env:
+          ECR_URI: ${{ steps.ecr-login.outputs.registry }}/${{ matrix.ecr_repo }}
+        run: |
+          echo "Image pushed: $ECR_URI:${{ github.sha }} (also tagged :k8s-proxy)"
+          echo "To roll this out to the live cluster, run:"
+          echo "  kubectl rollout restart deployment/${{ matrix.service }} -n ml-platform"
