@@ -1,0 +1,126 @@
+"""Module 4a (BYOC) for endpoint3. Same pattern as endpoint1/endpoint2, with one real
+difference in test_invoke(): endpoint3's test_payload.json has a different shape
+({"cells": [...]}, no separate expected_labels) because it's a self-consistency check
+against the predicted_label already embedded in each cell - see test_main.py's
+test_predict_on_real_xenium_cells_is_self_consistent for the same logic locally.
+Last known local result: 95.0% (57/60) agreement - this run should land close to that.
+
+Run this from sagemaker-packaging/endpoint3-byoc/.
+Needs: pip install boto3
+"""
+import json
+import tarfile
+import time
+from pathlib import Path
+
+import boto3
+
+# --- Fill these in / confirm before running ---
+REGION = "us-east-1"
+ACCOUNT_ID = "388691194728"
+ROLE_ARN = f"arn:aws:iam::{ACCOUNT_ID}:role/assessment4-robert-sagemaker-role"
+BUCKET = "assessment4-robert-sagemaker"
+ENDPOINT_NAME = "assessment4-robert-endpoint3-spatial"
+S3_KEY = "endpoint3/model.tar.gz"
+INSTANCE_TYPE = "ml.t2.medium"
+
+ECR_IMAGE_URI = f"{ACCOUNT_ID}.dkr.ecr.{REGION}.amazonaws.com/assessment4-robert-endpoint3:latest"
+
+HERE = Path(__file__).parent
+MODEL_ARTIFACTS = HERE.parent.parent / "services" / "endpoint3-spatial" / "model_artifacts"
+BUILD_DIR = HERE / "_sagemaker_build"
+
+session = boto3.Session(region_name=REGION)
+sm = session.client("sagemaker")
+s3 = session.client("s3")
+
+
+def build_tarball():
+    BUILD_DIR.mkdir(exist_ok=True)
+    tar_path = BUILD_DIR / "model.tar.gz"
+    with tarfile.open(tar_path, "w:gz") as tar:
+        for fname in ["endpoint3_model.joblib", "endpoint3_label_encoder.joblib", "schema.json"]:
+            tar.add(MODEL_ARTIFACTS / fname, arcname=fname)
+    print(f"Built {tar_path} ({tar_path.stat().st_size / 1024:.0f} KB)")
+    return tar_path
+
+
+def upload(tar_path):
+    s3.upload_file(str(tar_path), BUCKET, S3_KEY)
+    s3_uri = f"s3://{BUCKET}/{S3_KEY}"
+    print(f"Uploaded to {s3_uri}")
+    return s3_uri
+
+
+def deploy(s3_uri):
+    print(f"Using container image: {ECR_IMAGE_URI}")
+
+    model_name = f"{ENDPOINT_NAME}-model"
+    config_name = f"{ENDPOINT_NAME}-config"
+
+    sm.create_model(
+        ModelName=model_name,
+        ExecutionRoleArn=ROLE_ARN,
+        PrimaryContainer={
+            "Image": ECR_IMAGE_URI,
+            "ModelDataUrl": s3_uri,
+        },
+    )
+    print(f"Created model: {model_name}")
+
+    sm.create_endpoint_config(
+        EndpointConfigName=config_name,
+        ProductionVariants=[
+            {
+                "VariantName": "AllTraffic",
+                "ModelName": model_name,
+                "InstanceType": INSTANCE_TYPE,
+                "InitialInstanceCount": 1,
+            }
+        ],
+    )
+    print(f"Created endpoint config: {config_name}")
+
+    sm.create_endpoint(EndpointName=ENDPOINT_NAME, EndpointConfigName=config_name)
+    print(f"Creating endpoint: {ENDPOINT_NAME} (this takes several minutes)...")
+
+    while True:
+        status = sm.describe_endpoint(EndpointName=ENDPOINT_NAME)["EndpointStatus"]
+        print(f"  status: {status}")
+        if status in ("InService", "Failed"):
+            break
+        time.sleep(30)
+
+    if status == "Failed":
+        reason = sm.describe_endpoint(EndpointName=ENDPOINT_NAME)["FailureReason"]
+        raise SystemExit(f"Endpoint failed to deploy: {reason}")
+    print("Endpoint is InService")
+
+
+def test_invoke():
+    runtime = session.client("sagemaker-runtime")
+    payload = json.loads((MODEL_ARTIFACTS / "test_payload.json").read_text())
+    cells = payload["cells"]
+    upstream_labels = [c["predicted_label"] for c in cells]
+
+    response = runtime.invoke_endpoint(
+        EndpointName=ENDPOINT_NAME,
+        ContentType="application/json",
+        Accept="application/json",
+        Body=json.dumps({"cells": cells}),
+    )
+    result = json.loads(response["Body"].read())
+    predicted = result["predicted_labels"]
+
+    agree = sum(1 for a, b in zip(predicted, upstream_labels) if a == b)
+    accuracy = agree / len(cells)
+    print(f"\nReal SageMaker endpoint response on {len(cells)} real Xenium cells:")
+    print(f"  self-consistency with upstream predicted_label: {accuracy:.1%} ({agree}/{len(cells)})")
+    print("  (expect ~95% - matches the local Docker result from Module 3)")
+
+
+if __name__ == "__main__":
+    tar_path = build_tarball()
+    s3_uri = upload(tar_path)
+    deploy(s3_uri)
+    test_invoke()

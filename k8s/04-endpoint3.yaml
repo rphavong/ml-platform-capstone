@@ -1,0 +1,71 @@
+# Module 6c: endpoint3-spatial. Same shape as the other two, with slightly more memory
+# headroom - its payloads are bigger (60 cells x 4512 features in your test data) since
+# it forwards the full expression matrix plus x/y coordinates and predicted_label per
+# cell, even though the actual spatial-neighbor math now runs inside the SageMaker
+# container, not here.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: endpoint3-spatial
+  namespace: ml-platform
+  labels:
+    app: endpoint3-spatial
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: endpoint3-spatial
+  template:
+    metadata:
+      labels:
+        app: endpoint3-spatial
+    spec:
+      containers:
+        - name: endpoint3-spatial
+          image: 388691194728.dkr.ecr.us-east-1.amazonaws.com/assessment4-robert-endpoint3:k8s-proxy
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: proxy-config
+                  key: AWS_REGION
+            - name: SAGEMAKER_ENDPOINT_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: proxy-config
+                  key: ENDPOINT3_SAGEMAKER_ENDPOINT_NAME
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 384Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: endpoint3-spatial
+  namespace: ml-platform
+spec:
+  selector:
+    app: endpoint3-spatial
+  ports:
+    - port: 80
+      targetPort: 8000
+  type: ClusterIP

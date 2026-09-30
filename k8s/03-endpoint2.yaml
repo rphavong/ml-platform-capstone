@@ -1,0 +1,68 @@
+# Module 6c: endpoint2-xenium. Same shape as endpoint1-flex - only the name, image, and
+# which ConfigMap key it reads its SageMaker endpoint name from differ.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: endpoint2-xenium
+  namespace: ml-platform
+  labels:
+    app: endpoint2-xenium
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: endpoint2-xenium
+  template:
+    metadata:
+      labels:
+        app: endpoint2-xenium
+    spec:
+      containers:
+        - name: endpoint2-xenium
+          image: 388691194728.dkr.ecr.us-east-1.amazonaws.com/assessment4-robert-endpoint2:k8s-proxy
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: proxy-config
+                  key: AWS_REGION
+            - name: SAGEMAKER_ENDPOINT_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: proxy-config
+                  key: ENDPOINT2_SAGEMAKER_ENDPOINT_NAME
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: endpoint2-xenium
+  namespace: ml-platform
+spec:
+  selector:
+    app: endpoint2-xenium
+  ports:
+    - port: 80
+      targetPort: 8000
+  type: ClusterIP

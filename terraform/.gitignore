@@ -1,0 +1,7 @@
+# Local Terraform state and provider cache - the state file holds plaintext sensitive
+# values (including the GitHub Actions IAM secret key) and none of this belongs in git.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log

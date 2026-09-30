@@ -1,10 +1,9 @@
-# Runtime dependencies. xgboost and scikit-learn are pinned to the versions the
-# model was TRAINED with
+# Module 4b: these services no longer load or run the model themselves - prediction
+# happens inside the SageMaker endpoint. xgboost, scikit-learn, and joblib are gone;
+# boto3 (for sagemaker-runtime) is the only new addition. numpy stays for input
+# validation (shape/finiteness checks) before forwarding to SageMaker.
 fastapi==0.141.1
 uvicorn[standard]==0.54.0
 pydantic==2.13.5
 numpy==2.4.6
-scipy==1.17.1
-joblib==1.6.0
-scikit-learn==1.9.0
-xgboost==3.2.0
+boto3==1.35.99

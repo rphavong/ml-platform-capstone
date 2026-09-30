@@ -1,171 +1,150 @@
-"""Automated checks for the endpoint3 (spatial) service. Run from this folder with: pytest -v
- 
-Two kinds of test here:
-  - Structural tests (shapes, status codes, response format) use SYNTHETIC coordinates
-    and labels via _synthetic_cells() below - fast, deterministic, no data dependency.
-  - test_predict_on_real_xenium_cells_is_self_consistent uses a REAL 60-cell payload
-    built from xenium_region.h5ad (see make_endpoint3_test_payload.py, run on EC2) and
-    checks the model's agreement with the upstream endpoint1/2 label. Last run: 95.0%
-    (57/60) agreement. It skips gracefully if model_artifacts/test_payload.json is
-    missing, so the suite still runs clean on a machine that never pulled that file.
+"""Automated checks for the endpoint3 PROXY service. Run from this folder with: pytest -v
+
+Same mocking approach as endpoint1/2's proxy tests. One extra thing worth testing here
+that endpoint1/2 don't have: the min-11-cells check must still happen locally (fast,
+free) rather than being discovered only after a round trip to SageMaker.
 """
+import io
 import json
 from pathlib import Path
- 
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
+from botocore.exceptions import ClientError, EndpointConnectionError, ReadTimeoutError
 from fastapi.testclient import TestClient
- 
+
 import main
- 
+
 HERE = Path(__file__).parent
 N_GENES = 4512
 N_CLASSES = 15
- 
- 
+
+
 @pytest.fixture(scope="module")
 def client():
     with TestClient(main.app) as c:
         yield c
- 
- 
+
+
 @pytest.fixture(scope="module")
 def schema():
     return json.loads((HERE / "model_artifacts" / "schema.json").read_text())
- 
- 
+
+
 def _synthetic_cells(n, schema, seed=0):
     rng = np.random.default_rng(seed)
     classes = schema["output_classes"]
-    cells = []
-    # lay cells out on a grid so the nearest-neighbor graph is well defined
     side = int(np.ceil(np.sqrt(n)))
-    for i in range(n):
-        cells.append(
-            {
-                "expression": rng.random(N_GENES).tolist(),
-                "x": float(i % side),
-                "y": float(i // side),
-                "predicted_label": classes[i % len(classes)],
-            }
-        )
-    return cells
- 
- 
+    return [
+        {
+            "expression": rng.random(N_GENES).tolist(),
+            "x": float(i % side),
+            "y": float(i // side),
+            "predicted_label": classes[i % len(classes)],
+        }
+        for i in range(n)
+    ]
+
+
+def _fake_sagemaker_response(body_dict):
+    return {"Body": io.BytesIO(json.dumps(body_dict).encode())}
+
+
 def test_health(client):
     assert client.get("/health").json() == {"status": "ok"}
- 
- 
+
+
 def test_ready_reports_feature_counts(client, schema):
     r = client.get("/ready")
     assert r.status_code == 200
     body = r.json()
     assert body["n_gene_features_expected"] == N_GENES
-    assert body["n_spatial_features_expected"] == N_CLASSES
     assert body["min_cells_per_request"] == 11
- 
- 
+    assert body["sagemaker_endpoint"] == main.SAGEMAKER_ENDPOINT_NAME
+
+
 def test_info(client):
     body = client.get("/info").json()
     assert body["service"] == "endpoint3-spatial"
     assert len(body["output_classes"]) == N_CLASSES
- 
- 
-def test_predict_on_real_xenium_cells_is_self_consistent(client):
-    """If a real test_payload.json exists (built from xenium_region.h5ad via
-    make_endpoint3_test_payload.py on EC2), run it and check the model's output
-    against the predicted_label already embedded in each cell.
- 
-    IMPORTANT caveat: those predicted_label values are the same field
-    spatial_features.py trained endpoint3's target on (see train_classifier's
-    sibling script). So this measures self-consistency with the upstream
-    endpoint1/2 model, not independent ground truth. High agreement is
-    expected and good; 100% is neither expected nor required, since some of
-    these cells were held out of endpoint3's own training split.
-    """
-    payload_path = HERE / "model_artifacts" / "test_payload.json"
-    if not payload_path.exists():
-        pytest.skip("No real test_payload.json yet - see make_endpoint3_test_payload.py")
- 
-    payload = json.loads(payload_path.read_text())
-    cells = payload["cells"]
-    assert len(cells) >= 11, "Real payload must meet the 11-cell spatial minimum"
- 
-    upstream_labels = [c["predicted_label"] for c in cells]
- 
-    r = client.post("/predict", json={"cells": cells})
-    assert r.status_code == 200
-    body = r.json()
- 
-    predicted = body["predicted_labels"]
-    assert len(predicted) == len(cells)
- 
-    agree = sum(1 for a, b in zip(predicted, upstream_labels) if a == b)
-    accuracy = agree / len(cells)
-    print(f"\nSelf-consistency on {len(cells)} real Xenium cells: {accuracy:.1%} ({agree}/{len(cells)})")
- 
-    # Loose threshold - this is a regression/smoke check, not a hard accuracy bar.
-    # If this starts failing, the drop itself is the useful signal (paste the
-    # printed accuracy so we can decide whether 50% is still the right bar).
-    assert accuracy >= 0.50, f"Self-consistency dropped to {accuracy:.1%} - investigate before trusting this build"
- 
- 
-def test_predict_returns_one_label_per_cell(client, schema):
+
+
+def test_predict_forwards_to_sagemaker(client, schema, monkeypatch):
     cells = _synthetic_cells(30, schema)
+    fake_result = {
+        "predicted_labels": [c["predicted_label"] for c in cells],
+        "confidence_scores": [0.8] * len(cells),
+    }
+    mock_invoke = MagicMock(return_value=_fake_sagemaker_response(fake_result))
+    monkeypatch.setattr(main.runtime, "invoke_endpoint", mock_invoke)
+
     r = client.post("/predict", json={"cells": cells})
     assert r.status_code == 200
     body = r.json()
     assert len(body["predicted_labels"]) == 30
-    assert len(body["confidence_scores"]) == 30
-    assert all(0.0 <= c <= 1.0 for c in body["confidence_scores"])
-    assert all(lbl in schema["output_classes"] for lbl in body["predicted_labels"])
- 
- 
-def test_too_few_cells_returns_400(client, schema):
+
+    _, kwargs = mock_invoke.call_args
+    assert kwargs["EndpointName"] == main.SAGEMAKER_ENDPOINT_NAME
+    sent_cells = json.loads(kwargs["Body"])["cells"]
+    assert len(sent_cells) == 30
+    assert "predicted_label" in sent_cells[0]  # spatial context forwarded, not stripped
+
+
+def test_too_few_cells_returns_400_without_calling_sagemaker(client, schema, monkeypatch):
+    mock_invoke = MagicMock()
+    monkeypatch.setattr(main.runtime, "invoke_endpoint", mock_invoke)
+
     cells = _synthetic_cells(5, schema)  # fewer than the 11-cell minimum
     r = client.post("/predict", json={"cells": cells})
     assert r.status_code == 400
- 
- 
-def test_unknown_predicted_label_returns_400(client, schema):
-    cells = _synthetic_cells(15, schema)
-    cells[0]["predicted_label"] = "not_a_real_class"
-    r = client.post("/predict", json={"cells": cells})
-    assert r.status_code == 400
- 
- 
+    mock_invoke.assert_not_called()
+
+
 def test_wrong_gene_count_returns_400(client, schema):
     cells = _synthetic_cells(15, schema)
-    cells[0]["expression"] = [0.1, 0.2]  # too short
+    cells[0]["expression"] = [0.1, 0.2]
     r = client.post("/predict", json={"cells": cells})
     assert r.status_code == 400
- 
- 
+
+
+def test_sagemaker_timeout_returns_504(client, schema, monkeypatch):
+    cells = _synthetic_cells(15, schema)
+    mock_invoke = MagicMock(side_effect=ReadTimeoutError(endpoint_url="fake"))
+    monkeypatch.setattr(main.runtime, "invoke_endpoint", mock_invoke)
+
+    r = client.post("/predict", json={"cells": cells})
+    assert r.status_code == 504
+
+
+def test_sagemaker_unreachable_returns_502(client, schema, monkeypatch):
+    cells = _synthetic_cells(15, schema)
+    mock_invoke = MagicMock(side_effect=EndpointConnectionError(endpoint_url="fake"))
+    monkeypatch.setattr(main.runtime, "invoke_endpoint", mock_invoke)
+
+    r = client.post("/predict", json={"cells": cells})
+    assert r.status_code == 502
+
+
+def test_unknown_predicted_label_surfaces_as_400(client, schema, monkeypatch):
+    """The SageMaker container itself rejects an unseen predicted_label with a 400
+    (see sagemaker_serve.py's ValueError -> HTTPException(400) path), which SageMaker
+    wraps as a ModelError. The proxy should unwrap that back to a 400, not a generic 502."""
+    cells = _synthetic_cells(15, schema)
+    error_response = {
+        "Error": {
+            "Code": "ModelError",
+            "Message": "Received client error (400) from primary and could not load the entire response body",
+        }
+    }
+    mock_invoke = MagicMock(side_effect=ClientError(error_response, "InvokeEndpoint"))
+    monkeypatch.setattr(main.runtime, "invoke_endpoint", mock_invoke)
+
+    r = client.post("/predict", json={"cells": cells})
+    assert r.status_code == 400
+
+
 def test_not_ready_returns_503(client, monkeypatch):
     monkeypatch.setattr(main, "READY", False)
     assert client.get("/ready").status_code == 503
     assert client.get("/info").status_code == 503
- 
- 
-# --- To build a REAL test payload later (with genuine expected labels), run something
-# like this on the machine that still has xenium_region.h5ad (EC2 or your Mac's venv
-# with scanpy installed):
-#
-#   import scanpy as sc, joblib, json
-#   adata = sc.read_h5ad("xenium_region.h5ad")
-#   sample = adata[:30].copy()
-#   feature_genes = joblib.load("endpoint1_feature_genes.joblib")
-#   X = sample[:, feature_genes].X
-#   if not isinstance(X, np.ndarray): X = X.toarray()
-#   payload = {
-#       "cells": [
-#           {
-#               "expression": X[i].tolist(),
-#               "x": float(sample.obsm["spatial"][i, 0]),
-#               "y": float(sample.obsm["spatial"][i, 1]),
-#               "predicted_label": sample.obs["predicted_label"].iloc[i],
-#           }
-#           for i in range(sample.n_obs)
-#       ],
-#   }
-#   json.dump(payload, open("model_artifacts/test_payload.json", "w"))

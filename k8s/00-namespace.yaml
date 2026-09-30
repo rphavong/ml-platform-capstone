@@ -1,0 +1,10 @@
+# Module 6c: everything for this project lives in its own namespace, rather than the
+# default one. That's not just tidiness - it's what the node-role IAM policy comment in
+# eks-iam.tf refers to (system:serviceaccount:ml-platform:proxy-services), and it means
+# `kubectl get pods -n ml-platform` shows only your stuff, not cluster-system pods.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ml-platform
+  labels:
+    project: assessment4-robert

@@ -1,0 +1,6 @@
+#!/bin/sh
+# SageMaker always starts a BYOC container as `docker run <image> serve` - that "serve"
+# argument becomes this script's $1 (and we don't even need to look at it). This script
+# IS the container's ENTRYPOINT, so whatever argument SageMaker passes just gets ignored
+# and we always launch the same thing: the FastAPI server, on the port SageMaker expects.
+exec uvicorn sagemaker_serve:app --host 0.0.0.0 --port 8080
