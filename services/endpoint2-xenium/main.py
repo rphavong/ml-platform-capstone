@@ -21,6 +21,7 @@ import numpy as np
 from botocore.config import Config
 from botocore.exceptions import ClientError, ReadTimeoutError, ConnectTimeoutError, EndpointConnectionError
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 logging.basicConfig(level=logging.INFO)
@@ -67,6 +68,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=SERVICE_TITLE, lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # the React dashboard's dev server
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
 
 
 class PredictRequest(BaseModel):
