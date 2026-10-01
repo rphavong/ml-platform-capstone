@@ -1,0 +1,319 @@
+{
+  "generated_at": "2026-10-01T20:36:15.099752+00:00",
+  "note": "All numbers below are measured on held-out data the relevant model never trained on (stratified 80/20 split, random_state=42). No retraining was performed to generate this file - it reloads the already-deployed model artifacts and re-predicts.",
+  "endpoint1_endpoint2": {
+    "description": "Endpoint 1 (Flex) / Endpoint 2 (Xenium) shared classifier - one XGBoost model trained on real Flex single-cell data, restricted to genes shared with the Xenium panel. This evaluation uses ONLY Flex cells (8,686 total, a completely different dataset from endpoint3's 32,497-cell Xenium region below) - Flex is the only place this project has independent ground truth to evaluate against. There is no equivalent independent accuracy number for Xenium; see spatial_vs_gene_only below for the honest way to assess Xenium behavior.",
+    "data_source": "10x Genomics Flex single-cell (flex_final.h5ad)",
+    "total_cells": 8686,
+    "held_out_cells": 1738,
+    "accuracy": 0.85385500575374,
+    "macro_avg": {
+      "precision": 0.8657210764330802,
+      "recall": 0.8306364246699548,
+      "f1-score": 0.8436608082048723,
+      "support": 1738.0
+    },
+    "weighted_avg": {
+      "precision": 0.8502807761491671,
+      "recall": 0.85385500575374,
+      "f1-score": 0.8499156266107254,
+      "support": 1738.0
+    },
+    "per_class": {
+      "B_cell": {
+        "precision": 0.9012345679012346,
+        "recall": 0.8690476190476191,
+        "f1-score": 0.8848484848484849,
+        "support": 84.0
+      },
+      "Dendritic_cell": {
+        "precision": 0.8135593220338984,
+        "recall": 0.7933884297520661,
+        "f1-score": 0.803347280334728,
+        "support": 121.0
+      },
+      "Endothelial_lymphatic": {
+        "precision": 1.0,
+        "recall": 0.7058823529411765,
+        "f1-score": 0.8275862068965517,
+        "support": 17.0
+      },
+      "Endothelial_vascular": {
+        "precision": 0.9324324324324325,
+        "recall": 0.9583333333333334,
+        "f1-score": 0.9452054794520548,
+        "support": 72.0
+      },
+      "Fibroblast": {
+        "precision": 0.8490566037735849,
+        "recall": 0.8108108108108109,
+        "f1-score": 0.8294930875576036,
+        "support": 222.0
+      },
+      "Fibroblast_CAF": {
+        "precision": 0.8645833333333334,
+        "recall": 0.9120879120879121,
+        "f1-score": 0.8877005347593583,
+        "support": 182.0
+      },
+      "Macrophage": {
+        "precision": 0.8166666666666667,
+        "recall": 0.8521739130434782,
+        "f1-score": 0.8340425531914893,
+        "support": 115.0
+      },
+      "Mast_cell": {
+        "precision": 1.0,
+        "recall": 0.8333333333333334,
+        "f1-score": 0.9090909090909091,
+        "support": 12.0
+      },
+      "Pericyte": {
+        "precision": 0.7666666666666667,
+        "recall": 0.8214285714285714,
+        "f1-score": 0.7931034482758621,
+        "support": 28.0
+      },
+      "Plasma_cell": {
+        "precision": 0.9117647058823529,
+        "recall": 0.96875,
+        "f1-score": 0.9393939393939394,
+        "support": 32.0
+      },
+      "T_cell": {
+        "precision": 0.8241758241758241,
+        "recall": 0.8982035928143712,
+        "f1-score": 0.8595988538681948,
+        "support": 334.0
+      },
+      "T_cell_exhausted": {
+        "precision": 0.7796610169491526,
+        "recall": 0.7022900763358778,
+        "f1-score": 0.7389558232931727,
+        "support": 131.0
+      },
+      "malignant_epithelial": {
+        "precision": 0.925531914893617,
+        "recall": 0.9666666666666667,
+        "f1-score": 0.9456521739130435,
+        "support": 270.0
+      },
+      "normal_epithelial": {
+        "precision": 0.6222222222222222,
+        "recall": 0.3888888888888889,
+        "f1-score": 0.47863247863247865,
+        "support": 72.0
+      },
+      "pDC": {
+        "precision": 0.9782608695652174,
+        "recall": 0.9782608695652174,
+        "f1-score": 0.9782608695652174,
+        "support": 46.0
+      }
+    }
+  },
+  "endpoint3": {
+    "description": "Endpoint 3 (Spatial) classifier - a separately-trained XGBoost model using gene expression plus engineered neighborhood-composition features (fraction of each cell's 10 nearest physical neighbors predicted as each class).",
+    "data_source": "10x Genomics Xenium spatial region (xenium_region.h5ad)",
+    "total_cells": 32497,
+    "held_out_cells": 6500,
+    "accuracy": 0.8775384615384615,
+    "macro_avg": {
+      "precision": 0.8442386995850862,
+      "recall": 0.7211665401227053,
+      "f1-score": 0.76228055246179,
+      "support": 6500.0
+    },
+    "weighted_avg": {
+      "precision": 0.8779456625145274,
+      "recall": 0.8775384615384615,
+      "f1-score": 0.8759697169093976,
+      "support": 6500.0
+    },
+    "per_class": {
+      "B_cell": {
+        "precision": 0.9196428571428571,
+        "recall": 0.944954128440367,
+        "f1-score": 0.9321266968325792,
+        "support": 109.0
+      },
+      "Dendritic_cell": {
+        "precision": 0.8857142857142857,
+        "recall": 0.5344827586206896,
+        "f1-score": 0.6666666666666666,
+        "support": 58.0
+      },
+      "Endothelial_lymphatic": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 3.0
+      },
+      "Endothelial_vascular": {
+        "precision": 0.94,
+        "recall": 0.9325396825396826,
+        "f1-score": 0.9362549800796812,
+        "support": 252.0
+      },
+      "Fibroblast": {
+        "precision": 0.8435114503816794,
+        "recall": 0.7740805604203153,
+        "f1-score": 0.8073059360730593,
+        "support": 571.0
+      },
+      "Fibroblast_CAF": {
+        "precision": 0.8990267639902676,
+        "recall": 0.8882211538461539,
+        "f1-score": 0.8935912938331319,
+        "support": 832.0
+      },
+      "Macrophage": {
+        "precision": 0.8686868686868687,
+        "recall": 0.8037383177570093,
+        "f1-score": 0.8349514563106796,
+        "support": 107.0
+      },
+      "Mast_cell": {
+        "precision": 1.0,
+        "recall": 0.3333333333333333,
+        "f1-score": 0.5,
+        "support": 3.0
+      },
+      "Pericyte": {
+        "precision": 0.9166666666666666,
+        "recall": 0.6226415094339622,
+        "f1-score": 0.7415730337078652,
+        "support": 53.0
+      },
+      "Plasma_cell": {
+        "precision": 0.875,
+        "recall": 0.9333333333333333,
+        "f1-score": 0.9032258064516129,
+        "support": 30.0
+      },
+      "T_cell": {
+        "precision": 0.9048648648648648,
+        "recall": 0.8213935230618253,
+        "f1-score": 0.8611111111111112,
+        "support": 1019.0
+      },
+      "T_cell_exhausted": {
+        "precision": 0.8722222222222222,
+        "recall": 0.7969543147208121,
+        "f1-score": 0.8328912466843501,
+        "support": 197.0
+      },
+      "malignant_epithelial": {
+        "precision": 0.8793103448275862,
+        "recall": 0.9455388180764774,
+        "f1-score": 0.9112227805695142,
+        "support": 863.0
+      },
+      "normal_epithelial": {
+        "precision": 0.8589341692789969,
+        "recall": 0.9148580968280468,
+        "f1-score": 0.8860145513338723,
+        "support": 2396.0
+      },
+      "pDC": {
+        "precision": 1.0,
+        "recall": 0.5714285714285714,
+        "f1-score": 0.7272727272727273,
+        "support": 7.0
+      }
+    },
+    "caveat": "Evaluated against `predicted_label`, which is itself the gene-only model's own earlier call (see spatial_vs_gene_only below for why this accuracy number alone is not independent evidence of value - the hard-case comparison is)."
+  },
+  "spatial_vs_gene_only": {
+    "description": "Same held-out Xenium cells scored by BOTH models - does adding spatial neighborhood context actually change the call, and does it do so more on cells the gene-only model itself was least confident about?",
+    "test_cells": 6500,
+    "sanity_check_agreement": 1.0,
+    "sanity_check_note": "Gene-only model re-predicting now vs. the label it produced earlier on these same genes (pre-crop) - expected ~100%, confirms that label is not independent ground truth.",
+    "overall_agreement": 0.8775384615384615,
+    "overall_changed_count": 796,
+    "hard_case_threshold_confidence": 0.6383709907531738,
+    "hard_case_count": 3250,
+    "hard_case_agreement": 0.7916923076923077,
+    "hard_case_changed_count": 677,
+    "hard_case_changed_pct": 0.2083076923076923,
+    "gene_only_hard_case_distribution": {
+      "normal_epithelial": 1785,
+      "T_cell": 428,
+      "Fibroblast": 296,
+      "Fibroblast_CAF": 296,
+      "malignant_epithelial": 160,
+      "T_cell_exhausted": 115,
+      "Macrophage": 40,
+      "Dendritic_cell": 39,
+      "Endothelial_vascular": 38,
+      "B_cell": 22,
+      "Pericyte": 17,
+      "Plasma_cell": 6,
+      "pDC": 3,
+      "Endothelial_lymphatic": 3,
+      "Mast_cell": 2
+    },
+    "spatial_hard_case_distribution": {
+      "normal_epithelial": 1935,
+      "T_cell": 339,
+      "Fibroblast_CAF": 286,
+      "Fibroblast": 252,
+      "malignant_epithelial": 203,
+      "T_cell_exhausted": 102,
+      "Macrophage": 39,
+      "Endothelial_vascular": 32,
+      "B_cell": 25,
+      "Dendritic_cell": 18,
+      "Plasma_cell": 9,
+      "Pericyte": 9,
+      "pDC": 1
+    },
+    "confidence_histogram": {
+      "bin_edges": [
+        0.22681893408298492,
+        0.26545703411102295,
+        0.3040951192378998,
+        0.3427332043647766,
+        0.38137128949165344,
+        0.4200093746185303,
+        0.4586474895477295,
+        0.49728554487228394,
+        0.5359236598014832,
+        0.5745617151260376,
+        0.6131998300552368,
+        0.6518378853797913,
+        0.6904760003089905,
+        0.7291140556335449,
+        0.7677521705627441,
+        0.8063902258872986,
+        0.8450283408164978,
+        0.883666455745697,
+        0.9223045110702515,
+        0.9609426259994507,
+        0.9995806813240051
+      ],
+      "counts": [
+        8,
+        32,
+        101,
+        178,
+        256,
+        382,
+        430,
+        445,
+        491,
+        530,
+        546,
+        344,
+        327,
+        279,
+        274,
+        269,
+        290,
+        284,
+        387,
+        647
+      ]
+    }
+  }
+}

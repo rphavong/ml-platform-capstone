@@ -1,0 +1,42 @@
+Gene-only (endpoint1/2 model) vs spatially-aware (endpoint3 model)
+Same held-out Xenium test split: 6500 cells
+
+Sanity check - gene-only model re-predicting now vs the `predicted_label` it originally produced (pre-crop, in apply_classifier.py): 100.0% agreement. (Expected ~100% - confirms this label isn't independent ground truth, it's literally this model's own earlier call.)
+
+Gene-only vs spatial model, ALL 6500 test cells: 87.8% agreement (796 cells where spatial context changed the call)
+
+Restricting to the 3250 cells the gene-only model was LEAST confident about (bottom 50% of its own confidence scores, median=0.638):
+  Gene-only vs spatial agreement on just these hard cells: 79.2%
+  Spatial model changed the call on 677 / 3250 hard cells (20.8%)
+
+Gene-only model's calls on the hard cells:
+normal_epithelial        1785
+T_cell                    428
+Fibroblast                296
+Fibroblast_CAF            296
+malignant_epithelial      160
+T_cell_exhausted          115
+Macrophage                 40
+Dendritic_cell             39
+Endothelial_vascular       38
+B_cell                     22
+Pericyte                   17
+Plasma_cell                 6
+pDC                         3
+Endothelial_lymphatic       3
+Mast_cell                   2
+
+Spatial model's calls on the SAME hard cells:
+normal_epithelial       1935
+T_cell                   339
+Fibroblast_CAF           286
+Fibroblast               252
+malignant_epithelial     203
+T_cell_exhausted         102
+Macrophage                39
+Endothelial_vascular      32
+B_cell                    25
+Dendritic_cell            18
+Plasma_cell                9
+Pericyte                   9
+pDC                        1

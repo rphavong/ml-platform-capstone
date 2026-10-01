@@ -1,0 +1,118 @@
+<mxfile host="app.diagrams.net" agent="claude">
+  <diagram name="Architecture" id="architecture-diagram">
+    <mxGraphModel dx="1449" dy="748" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="dev" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=middle;" value="Developer&#xa;git push to main" vertex="1">
+          <mxGeometry height="50" width="180" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ghaContainer" parent="1" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=none;strokeColor=#d79b00;fontStyle=1;align=left;spacingLeft=6;spacingTop=4;" value="GitHub Actions (.github/workflows/)" vertex="1">
+          <mxGeometry height="230" width="240" x="40" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="ghaTest" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="test.yml&#xa;pytest per service" vertex="1">
+          <mxGeometry height="40" width="200" x="60" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="ghaBuild" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="cd.yml: build-and-push&#xa;docker buildx -&gt; ECR" vertex="1">
+          <mxGeometry height="40" width="200" x="60" y="225" as="geometry" />
+        </mxCell>
+        <mxCell id="ghaDeploy" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="cd.yml: deploy&#xa;kubectl set image + rollout status&#xa;+ live /health verification" vertex="1">
+          <mxGeometry height="55" width="200" x="60" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="awsContainer" parent="1" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=none;strokeColor=#6c8ebf;fontStyle=1;align=left;spacingLeft=6;spacingTop=4;" value="AWS (us-east-1, Terraform-managed)" vertex="1">
+          <mxGeometry height="700" width="880" x="340" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ecr" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="ECR&#xa;3 repos, :k8s-proxy + :sha tags" vertex="1">
+          <mxGeometry height="60" width="180" x="360" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="eksContainer" parent="1" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=none;strokeColor=#82b366;fontStyle=1;align=left;spacingLeft=6;spacingTop=4;" value="EKS cluster: assessment4-robert-cluster" vertex="1">
+          <mxGeometry height="330" width="840" x="360" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="ns1Container" parent="1" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#f8f9fa;strokeColor=#82b366;dashed=1;align=left;spacingLeft=6;spacingTop=4;" value="namespace: single-cell-genomics" vertex="1">
+          <mxGeometry height="270" width="380" x="380" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="svc1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="endpoint1-flex&#xa;Deployment + Service" vertex="1">
+          <mxGeometry height="50" width="160" x="400" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="svc2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="endpoint2-xenium&#xa;Deployment + Service" vertex="1">
+          <mxGeometry height="50" width="160" x="580" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="cm1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="ConfigMap: proxy-config" vertex="1">
+          <mxGeometry height="40" width="160" x="400" y="315" as="geometry" />
+        </mxCell>
+        <mxCell id="sec1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="Secret: sagemaker-invoke-fallback" vertex="1">
+          <mxGeometry height="40" width="160" x="580" y="315" as="geometry" />
+        </mxCell>
+        <mxCell id="q1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="ResourceQuota + LimitRange" vertex="1">
+          <mxGeometry height="40" width="340" x="400" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="ns2Container" parent="1" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#f8f9fa;strokeColor=#82b366;dashed=1;align=left;spacingLeft=6;spacingTop=4;" value="namespace: spatial-analysis" vertex="1">
+          <mxGeometry height="270" width="400" x="780" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="svc3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="endpoint3-spatial&#xa;Deployment + Service" vertex="1">
+          <mxGeometry height="50" width="170" x="800" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="cm2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="ConfigMap: proxy-config" vertex="1">
+          <mxGeometry height="40" width="170" x="990" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="sec2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="Secret: sagemaker-invoke-fallback" vertex="1">
+          <mxGeometry height="40" width="170" x="800" y="315" as="geometry" />
+        </mxCell>
+        <mxCell id="q2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="ResourceQuota + LimitRange" vertex="1">
+          <mxGeometry height="40" width="360" x="800" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="smContainer" parent="1" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=none;strokeColor=#b85450;fontStyle=1;align=left;spacingLeft=6;spacingTop=4;" value="SageMaker (BYOC endpoints)" vertex="1">
+          <mxGeometry height="160" width="840" x="360" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="sm1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="assessment4-robert-endpoint1-flex&#xa;(shared reference model)" vertex="1">
+          <mxGeometry height="80" width="250" x="380" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="sm2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="assessment4-robert-endpoint2-xenium&#xa;(SAME model as endpoint1)" vertex="1">
+          <mxGeometry height="80" width="250" x="655" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="sm3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="assessment4-robert-endpoint3-spatial&#xa;(separately-trained, + neighborhood features)" vertex="1">
+          <mxGeometry height="80" width="250" x="930" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="dash" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="React Ops Dashboard (dashboard/)&#xa;Health polling, test-prediction,&#xa;Model Quality + Cell Maps" vertex="1">
+          <mxGeometry height="80" width="220" x="1280" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="e-dev-test" edge="1" parent="1" source="dev" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" target="ghaTest" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-test-build" edge="1" parent="1" source="ghaTest" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" target="ghaBuild" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-build-deploy" edge="1" parent="1" source="ghaBuild" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" target="ghaDeploy" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-build-ecr" edge="1" parent="1" source="ghaBuild" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" target="ecr" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-deploy-eks" edge="1" parent="1" source="ghaDeploy" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" target="eksContainer" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-ecr-eks" edge="1" parent="1" source="ecr" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;" target="eksContainer" value="image pull via node IAM role">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-svc1-sm1" edge="1" parent="1" source="svc1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" target="sm1" value="invoke_endpoint (node IAM role, or Secret fallback)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-svc2-sm2" edge="1" parent="1" source="svc2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" target="sm2" value="invoke_endpoint">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-svc3-sm3" edge="1" parent="1" source="svc3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" target="sm3" value="invoke_endpoint">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-dash-svc1" edge="1" parent="1" source="dash" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" target="svc1" value="direct browser calls /health /ready /predict">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-dash-svc2" edge="1" parent="1" source="dash" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" target="svc2" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-dash-svc3" edge="1" parent="1" source="dash" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" target="svc3" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

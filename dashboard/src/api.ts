@@ -125,3 +125,86 @@ export async function runTestPrediction(
     clearTimeout(timeout);
   }
 }
+
+// Module eval evidence: a static, pre-computed summary of held-out model quality
+// (see ec2-pipeline-pulled/export_model_eval.py), shipped at build time as
+// public/model-eval.json - not a live endpoint, since these are offline
+// train/test-split evaluations, not something to recompute per page load.
+
+export interface ClassMetrics {
+  precision: number;
+  recall: number;
+  "f1-score": number;
+  support: number;
+}
+
+export interface EndpointEval {
+  description: string;
+  data_source: string;
+  total_cells: number;
+  held_out_cells: number;
+  accuracy: number;
+  macro_avg: ClassMetrics;
+  weighted_avg: ClassMetrics;
+  per_class: Record<string, ClassMetrics>;
+  caveat?: string;
+}
+
+export interface SpatialComparison {
+  description: string;
+  test_cells: number;
+  sanity_check_agreement: number;
+  sanity_check_note: string;
+  overall_agreement: number;
+  overall_changed_count: number;
+  hard_case_threshold_confidence: number;
+  hard_case_count: number;
+  hard_case_agreement: number;
+  hard_case_changed_count: number;
+  hard_case_changed_pct: number;
+  gene_only_hard_case_distribution: Record<string, number>;
+  spatial_hard_case_distribution: Record<string, number>;
+  confidence_histogram: { bin_edges: number[]; counts: number[] };
+}
+
+export interface ModelEval {
+  generated_at: string;
+  note: string;
+  endpoint1_endpoint2: EndpointEval;
+  endpoint3: EndpointEval;
+  spatial_vs_gene_only: SpatialComparison;
+}
+
+export async function fetchModelEval(): Promise<FetchState<ModelEval>> {
+  return fetchJson<ModelEval>("/model-eval.json");
+}
+
+// Cell-level scatter datasets (Flex UMAP, Xenium physical spatial map) - see
+// ec2-pipeline-pulled/export_embeddings.py. Compact encoding: class name
+// lists + integer codes per point, two label fields each (true/predicted or
+// gene-only/spatial) so the UI can toggle which one colors the plot.
+
+export interface ScatterPoint {
+  x: number;
+  y: number;
+  ct: number;
+  ctPred: number;
+  m: number;
+  mPred: number;
+}
+
+export interface ScatterDataset {
+  note: string;
+  n_cells: number;
+  cell_type_classes: string[];
+  malignancy_classes: string[];
+  points: ScatterPoint[];
+}
+
+export function fetchFlexUmap() {
+  return fetchJson<ScatterDataset>("/flex-umap.json");
+}
+
+export function fetchXeniumSpatial() {
+  return fetchJson<ScatterDataset>("/xenium-spatial.json");
+}

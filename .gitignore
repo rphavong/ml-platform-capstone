@@ -19,3 +19,6 @@ __pycache__/
 aws-setup/
 __pycache__/
 *.pyc
+
+# Self-assessment notes - personal reference only, not part of the deliverable.
+RUBRIC_SELF_ASSESSMENT.md

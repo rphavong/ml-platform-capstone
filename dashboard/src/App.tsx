@@ -1,5 +1,7 @@
 import { SERVICES } from "./api";
 import { ServiceCard } from "./components/ServiceCard";
+import { ModelEvaluation } from "./components/ModelEvaluation";
+import { CellMaps } from "./components/CellMaps";
 
 export default function App() {
   return (
@@ -24,6 +26,9 @@ export default function App() {
             <ServiceCard key={service.id} service={service} />
           ))}
         </div>
+
+        <ModelEvaluation />
+        <CellMaps />
       </div>
     </div>
   );

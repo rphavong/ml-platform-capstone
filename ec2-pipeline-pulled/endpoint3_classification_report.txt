@@ -1,0 +1,25 @@
+Endpoint 3 spatial-aware model (endpoint3_model.joblib)
+Held-out test split: 6500 cells (20% of 32497 total, stratified, random_state=42)
+No retraining performed - evaluating the already-deployed model artifact.
+
+                       precision    recall  f1-score   support
+
+               B_cell       0.92      0.94      0.93       109
+       Dendritic_cell       0.89      0.53      0.67        58
+Endothelial_lymphatic       0.00      0.00      0.00         3
+ Endothelial_vascular       0.94      0.93      0.94       252
+           Fibroblast       0.84      0.77      0.81       571
+       Fibroblast_CAF       0.90      0.89      0.89       832
+           Macrophage       0.87      0.80      0.83       107
+            Mast_cell       1.00      0.33      0.50         3
+             Pericyte       0.92      0.62      0.74        53
+          Plasma_cell       0.88      0.93      0.90        30
+               T_cell       0.90      0.82      0.86      1019
+     T_cell_exhausted       0.87      0.80      0.83       197
+ malignant_epithelial       0.88      0.95      0.91       863
+    normal_epithelial       0.86      0.91      0.89      2396
+                  pDC       1.00      0.57      0.73         7
+
+             accuracy                           0.88      6500
+            macro avg       0.84      0.72      0.76      6500
+         weighted avg       0.88      0.88      0.88      6500
