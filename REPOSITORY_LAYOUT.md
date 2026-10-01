@@ -16,7 +16,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for how these pieces connect at runtime.
 | `aws-setup/` | Superseded by `terraform/iam.tf` — kept only as a record of the manual IAM setup before Terraform took over (gitignored) |
 | `_archive/` | Pre-refactor versions of the 3 services, back when they loaded and ran the model in-process instead of proxying to SageMaker (see `services/*/main.py`'s own docstring for what changed and why) |
 | `.gitignore`, `.dockerignore` | Exclude venvs, build artifacts, large biology data files (`.h5ad`/`.h5`/`.parquet`), and Terraform state |
-| `ARCHITECTURE.drawio` | The same architecture diagram as [ARCHITECTURE.md](ARCHITECTURE.md), as an editable draw.io file |
+| `ARCHITECTURE.drawio` | The detailed architecture diagram from [ARCHITECTURE.md](ARCHITECTURE.md) (every namespace/ConfigMap/Secret), as an editable draw.io file |
+| `ARCHITECTURE-PRESENTATION.drawio` | The simplified, slide-friendly version of the same diagram - 6 boxes, no K8s internals, for presenting rather than for Q&A reference |
 
 ## `.github/workflows/`
 

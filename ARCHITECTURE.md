@@ -1,6 +1,25 @@
 # Architecture
 
-A draw.io-compatible version of the diagram below lives at
+## Presentation overview (start here)
+
+The simple version — what a reviewer needs on one slide. A draw.io file of this exact
+diagram is at [`ARCHITECTURE-PRESENTATION.drawio`](ARCHITECTURE-PRESENTATION.drawio).
+
+```mermaid
+flowchart LR
+    dev["Developer"] -->|git push| gha["GitHub Actions\ntest → build → deploy"]
+    gha -->|build & push image| ecr[("Container Registry\n(ECR)")]
+    ecr -.image pull.-> eks["Kubernetes (EKS)\n3 proxy services"]
+    gha -->|deploy| eks
+    eks -->|routes requests| sm["Amazon SageMaker\n3 ML model endpoints"]
+    dash["React Dashboard\nstatus, test predictions,\nmodel-quality evidence"] -->|health + predictions| eks
+```
+
+## Full detail (for Q&A / engineering reference)
+
+Every namespace, ConfigMap, Secret and the 3 endpoints individually — useful when
+someone asks "which namespace is which" or "how do credentials actually flow," not
+for a slide. A draw.io version of THIS diagram (the dense one) is at
 [`ARCHITECTURE.drawio`](ARCHITECTURE.drawio) — open it at
 [app.diagrams.net](https://app.diagrams.net) (File → Open From → Device) or in the
 draw.io VS Code extension for an easier-to-navigate, pan/zoomable view with the same
