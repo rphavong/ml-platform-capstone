@@ -16,8 +16,9 @@ below for why, and for the case that this satisfies the assessment's actual inte
 1. [Business Scenario](#business-scenario)
 2. [The Three Endpoints](#the-three-endpoints)
 3. [Setup, Deploy, Verify, Teardown](#setup-deploy-verify-teardown)
-4. [Dashboard Evidence: Model Quality & Cell Maps](#dashboard-evidence-model-quality--cell-maps)
-5. [Further Reading](#further-reading)
+4. [Pushing Changes & Triggering CI/CD](#pushing-changes--triggering-cicd)
+5. [Dashboard Evidence: Model Quality & Cell Maps](#dashboard-evidence-model-quality--cell-maps)
+6. [Further Reading](#further-reading)
 
 ---
 
@@ -116,6 +117,32 @@ accurate calls once physical context is added.
 - AWS CLI configured against the class account, `terraform`, `kubectl`, `docker`, Python 3.11
 - `aws sts get-caller-identity` to confirm credentials before doing anything else
 
+### 0. Local environment (Python venv + dashboard)
+
+Run everything below from the repo root (`ml-platform-capstone/`), with these two
+environments active. Mixing them up (e.g. running a Python script with the venv not
+activated, or from the wrong working directory) is the most common reason a step that
+worked before suddenly "doesn't function" during a demo.
+
+- **Python venv** — one shared virtualenv at the repo root (`venv/`) already has
+  everything the Terraform/SageMaker packaging scripts and the
+  `ec2-pipeline-pulled/` biology pipeline need (`boto3`, `xgboost`, `scikit-learn`,
+  `pandas`, `numpy`, `fastapi`, `geopandas`, plus `anndata`/`scanpy`/`squidpy`/
+  `umap-learn` once installed per [Dashboard Evidence](#dashboard-evidence-model-quality--cell-maps)
+  below). Activate it **once per terminal, from the repo root**, before running any
+  `python ...` command anywhere in this README:
+  ```bash
+  cd ml-platform-capstone        # repo root
+  source venv/bin/activate
+  which python                   # sanity check — should resolve inside venv/bin
+  ```
+  Activation stays on for that terminal session even after you `cd` into a
+  subfolder (`sagemaker-packaging/endpoint1-byoc`, `ec2-pipeline-pulled`, etc.) — you
+  do **not** need to re-activate per subfolder, just per new terminal tab/window.
+- **Dashboard (Node/npm)** — separate from the Python venv, lives entirely under
+  `dashboard/`. `npm install` only needs to run once (or again after a
+  `package.json` change) — see [Setup step 5](#5-run-the-dashboard).
+
 ### 1. Infrastructure (Terraform)
 
 ```bash
@@ -141,6 +168,10 @@ aws eks update-kubeconfig --region us-east-1 --name assessment4-robert-cluster
 cd sagemaker-packaging/endpoint1-byoc && python package_and_deploy.py && cd ../..
 cd sagemaker-packaging/endpoint2-byoc && python package_and_deploy.py && cd ../..
 cd sagemaker-packaging/endpoint3-byoc && python package_and_deploy.py && cd ../..
+```
+#### Run the following to check the endpoints status in AWS:
+```bash
+aws sagemaker list-endpoints --region us-east-1 --query "Endpoints[*].[EndpointName,EndpointStatus]" --output table
 ```
 
 Each script builds the model image's artifact bundle, uploads it, and deploys/waits for
@@ -235,6 +266,42 @@ python export_embeddings.py      # -> dashboard/public/flex-umap.json, xenium-sp
 
 None of these retrain anything — they reload the already-deployed model artifacts and
 only predict, so there's zero risk to what's live on SageMaker.
+
+---
+
+## Pushing Changes & Triggering CI/CD
+
+This is a single-author capstone, so changes push straight to `main` rather than
+going through pull requests — and that's exactly what `cd.yml` is wired to listen
+for (`on: push: branches: [main]`). From the repo root, with the venv active where
+Python files changed (see [Local environment](#0-local-environment-python-venv--dashboard)
+above):
+
+```bash
+git status                  # see what changed
+git add -A                  # or add specific files
+git commit -m "..."         # describe the change
+git push                    # pushes to origin/main — this is what fires GitHub Actions
+```
+
+That `git push` to `main` is the trigger. Once it lands on GitHub, `cd.yml` runs,
+in order, for all 3 services:
+
+1. **`test`** — calls the shared `test.yml` (pytest against each proxy service). If
+   any test fails, the pipeline stops here — nothing gets built or deployed.
+2. **`build-and-push`** — builds each service's Docker image and pushes it to its
+   ECR repo, tagged both `:k8s-proxy` and `:<commit-sha>`.
+3. **`deploy`** — `kubectl set image` onto the live EKS deployment, waits for
+   `rollout status` to report success, then calls `/health` *inside* the new pod
+   as a live check — not just trusting that the image swap was accepted.
+
+Watch it run from the GitHub repo's **Actions** tab, or `gh run watch` if the
+GitHub CLI is installed locally. A red ✗ on `test` or `build-and-push` means
+nothing new reached the cluster — the previous image is still running, untouched.
+
+Opening a pull request instead of pushing straight to `main` only runs `ci.yml`
+(the same `test.yml` job, nothing else) — a safe way to get test feedback on a
+change without building images or touching the live cluster.
 
 ---
 
