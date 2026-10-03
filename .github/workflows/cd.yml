@@ -150,9 +150,15 @@ jobs:
       # installed (see services/*/Dockerfile), which cost real debugging time earlier
       # in this project when a kubectl exec + curl command silently failed.
       - name: Verify the new pod answers /health
+        # Resolve the pod through the Deployment at exec-time (`deployment/<name>`,
+        # not a pod name captured in an earlier step) - `kubectl exec` looks up a
+        # live, running pod itself the moment this runs. Capturing a pod name with
+        # a separate `kubectl get pod ... -o jsonpath` command first left a race:
+        # rollout status had just finished replacing the old pod, and by the time
+        # exec ran a moment later, that pod name had already been torn down
+        # ("NotFound") even though the rollout itself succeeded.
         run: |
-          POD=$(kubectl get pod -n ${{ matrix.namespace }} -l app=${{ matrix.service }} -o jsonpath='{.items[0].metadata.name}')
-          echo "Checking /health on $POD..."
-          kubectl exec -n ${{ matrix.namespace }} "$POD" -- \
+          echo "Checking /health on deployment/${{ matrix.service }}..."
+          kubectl exec -n ${{ matrix.namespace }} deployment/${{ matrix.service }} -- \
             python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/health', timeout=5).read().decode())"
           kubectl get pods -n ${{ matrix.namespace }} -l app=${{ matrix.service }}
