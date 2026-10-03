@@ -1,7 +1,7 @@
 # Module 7: a dedicated IAM user for the GitHub Actions CD pipeline, scoped to exactly
 # what cd.yml needs and nothing else - push images to this project's 3 ECR repos. This
 # is deliberately its own IAM user rather than reusing your own AWS CLI credentials
-# (which likely have far broader permissions in this class account) - if this key ever
+# if this key ever
 # leaked from a GitHub secret, the blast radius is "can push to 3 ECR repos," not
 # "can do anything you personally can do in this account."
 resource "aws_iam_user" "github_actions" {

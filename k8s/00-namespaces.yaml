@@ -1,4 +1,4 @@
-# Module 6c (revised): two namespaces instead of one, mapping to the two workstreams
+# Two namespaces instead of one, mapping to the two workstreams
 # in this project - matching the rubric's "namespace separation per team" the same way
 # the assignment's own example scenarios separate a Fraud team from a Recommendations
 # team. Here the natural split isn't by business unit (this is a single-author capstone)
